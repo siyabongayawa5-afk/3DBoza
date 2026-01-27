@@ -199,11 +199,9 @@ Connecting to printer...
 
         // Initialize on page load
         window.onload = function() {
-            // Load saved printer IP from localStorage
-            const savedIp = localStorage.getItem('printerIp');
-            if (savedIp) {
-                document.getElementById('printerIp').value = savedIp;
-            }
+            // Load saved printer IP from localStorage OR use default
+            const savedIp = localStorage.getItem('printerIp') || '192.168.8.86';
+            document.getElementById('printerIp').value = savedIp;
             
             // Initialize chart
             initChart();
