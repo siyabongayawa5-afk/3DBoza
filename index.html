@@ -1,1 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud 3D Printer Dashboard</title>
+    <style>
+        /* Same beautiful CSS from before */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
 
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .dashboard {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* ... Keep all your previous CSS styles ... */
+        /* Copy the ENTIRE CSS from the previous interface */
+        
+        .connection-status {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .connected { color: #4CAF50; }
+        .disconnected { color: #F44336; }
+        
+        .printer-ip-input {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            width: 200px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <div class="printer-name">🌐 Remote 3D Printer Dashboard</div>
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <div class="status-text" id="statusText">Disconnected</div>
+            </div>
+        </div>
+
+        <!-- Connection Section -->
+        <div class="connection-status">
+            <h3>🔗 Connect to Your Printer</h3>
+            <div style="margin: 15px 0;">
+                <input type="text" id="printerIp" class="printer-ip-input" 
+                       placeholder="ESP32 IP Address" value="">
+                <button class="btn btn-primary" onclick="connectToPrinter()">Connect</button>
+                <button class="btn btn-secondary" onclick="disconnect()">Disconnect</button>
+            </div>
+            <div id="connectionHelp" style="font-size: 14px; color: #666; margin-top: 10px;">
+                💡 Need help? Your ESP32 IP is shown in Serial Monitor
+            </div>
+        </div>
+
+        <!-- Main Content (Same as before but initially hidden) -->
+        <div id="mainContent" style="display: none;">
+            <div class="main-content">
+                <div class="temperatures">
+                    <div class="temp-display">
+                        <span class="temp-label">Hotend</span>
+                        <div class="temp-value" id="hotendTemp">0°C</div>
+                        <div class="temp-sub" id="hotendTarget">target / 0°C</div>
+                        <input type="range" min="150" max="300" value="205" class="temp-slider" 
+                               id="hotendSlider" onchange="setHotendTemp(this.value)">
+                    </div>
+                    
+                    <div class="temp-display">
+                        <span class="temp-label">Bed</span>
+                        <div class="temp-value" id="bedTemp">0°C</div>
+                        <div class="temp-sub" id="bedTarget">target / 0°C</div>
+                        <input type="range" min="0" max="120" value="60" class="temp-slider" 
+                               id="bedSlider" onchange="setBedTemp(this.value)">
+                    </div>
+                </div>
+
+                <div class="progress-section">
+                    <div class="progress-info">
+                        <div class="progress-label">Progress</div>
+                        <div class="progress-value" id="progressPercent">0%</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                    </div>
+
+                    <div class="file-info">
+                        <div class="filename" id="fileName">No file loaded</div>
+                        <div class="file-size" id="fileSize">0KB / 0KB</div>
+                        <div class="time-remaining" id="timeRemaining">0m 0s remaining</div>
+                    </div>
+                </div>
+
+                <div class="chart-section">
+                    <div class="chart-header">
+                        <div class="chart-title">Temperature History</div>
+                        <div class="temp-scale">
+                            <span>250°C</span>
+                            <span>200°C</span>
+                            <span>150°C</span>
+                            <span>100°C</span>
+                            <span>50°C</span>
+                            <span>0°C</span>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <canvas id="tempChart" width="600" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-buttons">
+                <button class="btn btn-primary" onclick="sendCmd('G28')">Home</button>
+                <button class="btn btn-primary" onclick="startPrint()">Start Print</button>
+                <button class="btn btn-secondary" onclick="pausePrint()">Pause</button>
+                <button class="btn btn-secondary" onclick="stopPrint()">Stop</button>
+                <button class="btn btn-secondary" onclick="showFiles()">Load File</button>
+                <button class="btn btn-danger" onclick="sendCmd('M112')">Emergency Stop</button>
+            </div>
+            
+            <!-- Console Log -->
+            <div style="margin-top: 30px; background: #1a1a1a; border-radius: 10px; padding: 15px;">
+                <div style="color: #fff; margin-bottom: 10px;">📟 Console</div>
+                <pre id="consoleLog" style="color: #0f0; background: #000; padding: 10px; 
+                      border-radius: 5px; height: 150px; overflow-y: auto; font-size: 12px;">
+Connecting to printer...
+                </pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Modal -->
+    <div id="fileModal" class="modal">
+        <div class="modal-content">
+            <button class="close-modal" onclick="closeModal()">&times;</button>
+            <h2>Select G-code File</h2>
+            <div class="file-list" id="fileList">
+                <!-- Files loaded dynamically -->
+            </div>
+            <div style="margin-top: 20px;">
+                <input type="file" id="fileUpload" accept=".gcode" style="margin-bottom: 10px;">
+                <button class="btn btn-primary" onclick="uploadFile()" style="width: 100%;">
+                    📤 Upload to Printer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        // Global variables
+        let ws = null;
+        let printerIp = '';
+        let tempChart = null;
+        let chartData = {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Hotend',
+                    data: [],
+                    borderColor: '#ff416c',
+                    backgroundColor: 'rgba(255, 65, 108, 0.1)',
+                    tension: 0.4
+                },
+                {
+                    label: 'Bed',
+                    data: [],
+                    borderColor: '#2196F3',
+                    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                    tension: 0.4
+                }
+            ]
+        };
+
+        // Initialize on page load
+        window.onload = function() {
+            // Load saved printer IP from localStorage
+            const savedIp = localStorage.getItem('printerIp');
+            if (savedIp) {
+                document.getElementById('printerIp').value = savedIp;
+            }
+            
+            // Initialize chart
+            initChart();
+        };
+
+        function connectToPrinter() {
+            printerIp = document.getElementById('printerIp').value.trim();
+            if (!printerIp) {
+                alert('Please enter printer IP address');
+                return;
+            }
+            
+            // Save IP for next time
+            localStorage.setItem('printerIp', printerIp);
+            
+            // Disconnect if already connected
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+            }
+            
+            // Connect to WebSocket
+            const wsUrl = `ws://${printerIp}:81/`;
+            logToConsole(`Connecting to ${wsUrl}...`);
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                logToConsole('✅ Connected to printer!');
+                updateStatus('Connected');
+                document.getElementById('mainContent').style.display = 'block';
+                document.getElementById('connectionHelp').innerHTML = 
+                    '✅ Connected! Access from anywhere at: ' + window.location.href;
+            };
+            
+            ws.onmessage = function(event) {
+                handlePrinterMessage(event.data);
+            };
+            
+            ws.onerror = function(error) {
+                logToConsole('❌ Connection error: ' + error);
+                updateStatus('Error');
+            };
+            
+            ws.onclose = function() {
+                logToConsole('🔌 Disconnected from printer');
+                updateStatus('Disconnected');
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            document.getElementById('mainContent').style.display = 'none';
+            updateStatus('Disconnected');
+        }
+
+        function handlePrinterMessage(data) {
+            logToConsole('📨: ' + data);
+            
+            // Parse temperature data
+            if(data.startsWith("HOTEND:")) {
+                const temp = data.split(':')[1];
+                document.getElementById('hotendTemp').innerText = temp + '°C';
+                updateChartData('hotend', parseFloat(temp));
+            }
+            if(data.startsWith("BED:")) {
+                const temp = data.split(':')[1];
+                document.getElementById('bedTemp').innerText = temp + '°C';
+                updateChartData('bed', parseFloat(temp));
+            }
+            
+            // Parse status
+            if(data.startsWith("STATUS:")) {
+                updateStatus(data.split(':')[1]);
+            }
+            
+            // Parse progress
+            if(data.startsWith("PROGRESS:")) {
+                const progress = data.split(':')[1];
+                document.getElementById('progressPercent').innerText = progress + '%';
+                document.getElementById('progressFill').style.width = progress + '%';
+            }
+            
+            // Parse file info
+            if(data.startsWith("FILENAME:")) {
+                document.getElementById('fileName').innerText = data.substring(9);
+            }
+            if(data.startsWith("FILESIZE:")) {
+                document.getElementById('fileSize').innerText = data.substring(9);
+            }
+            if(data.startsWith("TIMELEFT:")) {
+                document.getElementById('timeRemaining').innerText = data.substring(9) + ' remaining';
+            }
+        }
+
+        function sendCmd(cmd) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(cmd);
+                logToConsole('📤 Sent: ' + cmd);
+            } else {
+                alert('Not connected to printer');
+            }
+        }
+
+        function setHotendTemp(val) {
+            document.getElementById('hotendTarget').innerText = 'target / ' + val + '°C';
+            sendCmd("M104 S" + val);
+        }
+
+        function setBedTemp(val) {
+            document.getElementById('bedTarget').innerText = 'target / ' + val + '°C';
+            sendCmd("M140 S" + val);
+        }
+
+        function startPrint() { 
+            sendCmd("PRINT_START");
+            updateStatus("Printing");
+        }
+
+        function pausePrint() { 
+            sendCmd("PRINT_PAUSE");
+            updateStatus("Paused");
+        }
+
+        function stopPrint() { 
+            sendCmd("PRINT_STOP");
+            updateStatus("Stopped");
+        }
+
+        function showFiles() {
+            // Fetch file list from ESP32
+            fetch(`http://${printerIp}/list`)
+                .then(response => response.text())
+                .then(data => {
+                    const fileList = document.getElementById('fileList');
+                    fileList.innerHTML = '';
+                    const files = data.split('\n').filter(f => f.trim() !== '');
+                    
+                    if (files.length === 0) {
+                        fileList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">No files uploaded yet</div>';
+                        return;
+                    }
+                    
+                    files.forEach(file => {
+                        const div = document.createElement('div');
+                        div.className = 'file-item';
+                        div.innerHTML = `
+                            <div style="font-weight: 500;">${file}</div>
+                            <button onclick="selectFile('${file}')" style="padding: 5px 10px; font-size: 12px;">Select</button>
+                            <button onclick="deleteFile('${file}')" style="padding: 5px 10px; font-size: 12px; background: #f44336; color: white;">Delete</button>
+                        `;
+                        fileList.appendChild(div);
+                    });
+                    
+                    document.getElementById('fileModal').style.display = 'flex';
+                })
+                .catch(error => {
+                    alert('Error loading files: ' + error);
+                });
+        }
+
+        function selectFile(filename) {
+            sendCmd("LOAD_FILE:" + filename);
+            document.getElementById('fileName').innerText = filename;
+            closeModal();
+        }
+
+        function deleteFile(filename) {
+            if (confirm(`Delete ${filename}?`)) {
+                fetch(`http://${printerIp}/delete?file=${filename}`)
+                    .then(() => {
+                        showFiles(); // Refresh list
+                    });
+            }
+        }
+
+        function uploadFile() {
+            const fileInput = document.getElementById('fileUpload');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Please select a file first');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            logToConsole(`Uploading ${file.name}...`);
+            
+            fetch(`http://${printerIp}/upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(result => {
+                logToConsole('✅ ' + result);
+                showFiles(); // Refresh file list
+            })
+            .catch(error => {
+                logToConsole('❌ Upload failed: ' + error);
+            });
+        }
+
+        function closeModal() {
+            document.getElementById('fileModal').style.display = 'none';
+        }
+
+        function updateStatus(status) {
+            const statusText = document.getElementById('statusText');
+            const statusDot = document.getElementById('statusDot');
+            
+            statusText.textContent = status;
+            
+            switch(status) {
+                case 'Printing':
+                    statusDot.style.background = '#4CAF50';
+                    break;
+                case 'Connected':
+                    statusDot.style.background = '#2196F3';
+                    break;
+                case 'Paused':
+                    statusDot.style.background = '#FFC107';
+                    break;
+                default:
+                    statusDot.style.background = '#F44336';
+            }
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('tempChart').getContext('2d');
+            tempChart = new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 250,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '°C';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChartData(type, value) {
+            const now = new Date();
+            const time = now.getHours().toString().padStart(2, '0') + ':' + 
+                         now.getMinutes().toString().padStart(2, '0') + ':' + 
+                         now.getSeconds().toString().padStart(2, '0');
+            
+            // Add new data point
+            if (chartData.labels.length > 30) {
+                chartData.labels.shift();
+                chartData.datasets[0].data.shift();
+                chartData.datasets[1].data.shift();
+            }
+            
+            chartData.labels.push(time);
+            
+            if (type === 'hotend') {
+                chartData.datasets[0].data.push(value);
+                chartData.datasets[1].data.push(chartData.datasets[1].data.length > 0 ? 
+                    chartData.datasets[1].data[chartData.datasets[1].data.length - 1] : 0);
+            } else {
+                chartData.datasets[1].data.push(value);
+                chartData.datasets[0].data.push(chartData.datasets[0].data.length > 0 ? 
+                    chartData.datasets[0].data[chartData.datasets[0].data.length - 1] : 0);
+            }
+            
+            tempChart.update();
+        }
+
+        function logToConsole(message) {
+            const consoleEl = document.getElementById('consoleLog');
+            const timestamp = new Date().toLocaleTimeString();
+            consoleEl.innerHTML += `[${timestamp}] ${message}\n`;
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        // Copy dashboard URL to clipboard
+        function copyDashboardUrl() {
+            navigator.clipboard.writeText(window.location.href);
+            alert('Dashboard URL copied to clipboard! Share this link to access remotely.');
+        }
+    </script>
+</body>
+</html>
