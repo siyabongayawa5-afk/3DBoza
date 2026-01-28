@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -259,7 +260,20 @@ Connecting to printer...
             document.getElementById('mainContent').style.display = 'none';
             updateStatus('Disconnected');
         }
-
+	// Auto-connect on page load if IP is saved
+	window.onload = function() {
+	  const savedIp = localStorage.getItem('printerIp') || '192.168.1.100';
+ 	 document.getElementById('printerIp').value = savedIp;
+  
+ 	 if (savedIp && savedIp !== '192.168.1.100') {
+ 	   setTimeout(() => connectToPrinter(), 1000);
+ 	 }
+	};
+	function scanForPrinter() {
+	  // Try common IPs
+	  const ips = ['192.168.1.100', '192.168.0.100', '192.168.1.101'];
+ 	 // Test each IP
+	}
         function handlePrinterMessage(data) {
             logToConsole('📨: ' + data);
             
