@@ -262,10 +262,10 @@ Connecting to printer...
         }
 	// Auto-connect on page load if IP is saved
 	window.onload = function() {
-	  const savedIp = localStorage.getItem('printerIp') || '192.168.1.100';
+	  const savedIp = localStorage.getItem('printerIp') || '192.168.8.86';
  	 document.getElementById('printerIp').value = savedIp;
   
- 	 if (savedIp && savedIp !== '192.168.1.100') {
+ 	 if (savedIp && savedIp !== '192.168.8.86') {
  	   setTimeout(() => connectToPrinter(), 1000);
  	 }
 	};
