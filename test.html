@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <button onclick="connect()">Connect</button>
+    <div id="output"></div>
+    <script>
+        let ws;
+        function connect() {
+            ws = new WebSocket('ws://192.168.1.100:81');
+            ws.onopen = () => output('✅ Connected');
+            ws.onmessage = (e) => output('📨: ' + e.data);
+        }
+        function output(msg) {
+            document.getElementById('output').innerHTML += msg + '<br>';
+        }
+    </script>
+</body>
+</html>
