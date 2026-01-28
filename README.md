@@ -4,7 +4,7 @@
 A beautiful, mobile-friendly dashboard for controlling your 3D printer remotely via ESP32.
 
 ## 🌐 Live Demo
-https://YOUR_USERNAME.github.io/3d-printer-dashboard
+https://siyabongayawa5-afk.github.io/3DBoza
 
 ## 🛠 Setup Instructions
 
