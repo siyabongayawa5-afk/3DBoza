@@ -217,7 +217,18 @@ Connecting to printer...
             // Initialize chart
             initChart();
         };
-
+		// QR code scanner for IP address
+function scanQRCode() {
+  const scanner = new Html5Qrcode("qr-reader");
+  scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 250 },
+    qrCodeMessage => {
+      document.getElementById('printerIp').value = qrCodeMessage;
+      scanner.stop();
+    }
+  );
+}
         function connectToPrinter() {
             printerIp = document.getElementById('printerIp').value.trim();
             if (!printerIp) {
