@@ -217,6 +217,110 @@ Connecting to printer...
             // Initialize chart
             initChart();
         };
+		// Add this function to detect ngrok URLs
+function detectConnectionMode() {
+    const url = window.location.href;
+    const isNgrok = url.includes('ngrok.io') || url.includes('loca.lt') || url.includes('cloudflaretunnel.com');
+    const isGitHub = url.includes('github.io');
+    const isLocal = url.startsWith('file://') || url.includes('localhost') || url.includes('127.0.0.1');
+    
+    let mode = 'local';
+    let defaultIP = '192.168.1.100';
+    let helpText = 'Enter your ESP32 local IP address';
+    
+    if (isNgrok) {
+        mode = 'ngrok';
+        defaultIP = window.location.hostname;
+        helpText = '🌐 ngrok Tunnel Active - Access from anywhere';
+    } else if (isGitHub) {
+        mode = 'github';
+        helpText = '⚠️ GitHub Pages - You need ngrok tunnel to connect to local ESP32';
+    }
+    
+    return { mode, defaultIP, helpText };
+}
+
+// Update window.onload
+window.onload = function() {
+    const { mode, defaultIP, helpText } = detectConnectionMode();
+    
+    // Load saved IP or use default based on mode
+    const savedIp = localStorage.getItem('printerIp_' + mode) || defaultIP;
+    document.getElementById('printerIp').value = savedIp;
+    document.getElementById('connectionHelp').innerHTML = helpText;
+    
+    // Update placeholder based on mode
+    if (mode === 'ngrok') {
+        document.getElementById('printerIp').placeholder = 'ngrok.io URL';
+    }
+    
+    // Initialize chart
+    initChart();
+    
+    // Auto-connect for ngrok mode
+    if (mode === 'ngrok' && savedIp !== defaultIP) {
+        setTimeout(() => {
+            connectToPrinter();
+        }, 1000);
+    }
+};
+
+// Update connectToPrinter function
+function connectToPrinter() {
+    let printerIp = document.getElementById('printerIp').value.trim();
+    const { mode } = detectConnectionMode();
+    
+    // Save IP for this mode
+    localStorage.setItem('printerIp_' + mode, printerIp);
+    
+    // For ngrok URLs, we need to handle WebSocket differently
+    let wsUrl;
+    if (mode === 'ngrok') {
+        // ngrok provides HTTPS, WebSocket must be WSS
+        if (printerIp.startsWith('http://')) {
+            printerIp = printerIp.replace('http://', '');
+        }
+        if (printerIp.startsWith('https://')) {
+            printerIp = printerIp.replace('https://', '');
+        }
+        wsUrl = `wss://${printerIp}:81`;
+    } else {
+        // Local connection
+        wsUrl = `ws://${printerIp}:81`;
+    }
+    
+    console.log(`Connecting to: ${wsUrl} (Mode: ${mode})`);
+    
+    // Close existing connection
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+    }
+    
+    // Create WebSocket connection
+    ws = new WebSocket(wsUrl);
+    
+    // WebSocket event handlers...
+    ws.onopen = function() {
+        console.log('✅ Connected!');
+        updateStatus('Connected');
+        document.getElementById('mainContent').style.display = 'block';
+        
+        // Update help text with connection info
+        const publicUrl = mode === 'ngrok' ? `https://${printerIp}` : window.location.href;
+        document.getElementById('connectionHelp').innerHTML = 
+            `✅ Connected! Share this dashboard: <br>
+             <input type="text" value="${publicUrl}" readonly style="width:300px;padding:5px;margin-top:5px;">
+             <button onclick="copyUrl('${publicUrl}')">Copy</button>`;
+    };
+    
+    // ... rest of your WebSocket handlers
+}
+
+// Helper to copy URL
+function copyUrl(url) {
+    navigator.clipboard.writeText(url);
+    alert('URL copied to clipboard!');
+}
 		// QR code scanner for IP address
 function scanQRCode() {
   const scanner = new Html5Qrcode("qr-reader");
